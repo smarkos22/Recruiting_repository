@@ -1,17 +1,13 @@
-import { ProspectType, RecruitStatus, PersonRole, School } from "../types/recruit";
+import { PersonTypeValue, PositionValue, School } from "../types/database";
 
 interface RecruitFiltersProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  selectedProspectType: ProspectType | "all";
-  onProspectTypeChange: (type: ProspectType | "all") => void;
-  selectedStatus: RecruitStatus | "all";
-  onStatusChange: (status: RecruitStatus | "all") => void;
-  selectedRole: PersonRole | "all";
-  onRoleChange: (role: PersonRole | "all") => void;
-  selectedPosition: string;
-  onPositionChange: (position: string) => void;
-  availablePositions: string[];
+  selectedRole: PersonTypeValue | "all";
+  onRoleChange: (role: PersonTypeValue | "all") => void;
+  selectedPosition: PositionValue | "all";
+  onPositionChange: (position: PositionValue | "all") => void;
+  availablePositions: PositionValue[];
   selectedState: string;
   onStateChange: (state: string) => void;
   availableStates: string[];
@@ -28,10 +24,6 @@ interface RecruitFiltersProps {
 export function RecruitFilters({
   searchQuery,
   onSearchChange,
-  selectedProspectType,
-  onProspectTypeChange,
-  selectedStatus,
-  onStatusChange,
   selectedRole,
   onRoleChange,
   selectedPosition,
@@ -72,7 +64,7 @@ export function RecruitFilters({
           <label className="block text-sm text-[var(--ink-muted)]">Role</label>
           <select
             value={selectedRole}
-            onChange={(e) => onRoleChange(e.target.value as PersonRole | "all")}
+            onChange={(e) => onRoleChange(e.target.value as PersonTypeValue | "all")}
             className="w-full rounded-md border border-[var(--border)] bg-[var(--input-background)] px-3 py-2 text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
           >
             <option value="all">All Roles</option>
@@ -81,38 +73,9 @@ export function RecruitFilters({
             <option value="staff">Staff</option>
           </select>
         </div>
-
-        <div className="space-y-2">
-          <label className="block text-sm text-[var(--ink-muted)]">Prospect type</label>
-          <select
-            value={selectedProspectType}
-            onChange={(e) => onProspectTypeChange(e.target.value as ProspectType | "all")}
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--input-background)] px-3 py-2 text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-          >
-            <option value="all">All</option>
-            <option value="high-school">High School</option>
-            <option value="transfer">Transfer</option>
-          </select>
-        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="space-y-2">
-          <label className="block text-sm text-[var(--ink-muted)]">Status</label>
-          <select
-            value={selectedStatus}
-            onChange={(e) => onStatusChange(e.target.value as RecruitStatus | "all")}
-            className="w-full rounded-md border border-[var(--border)] bg-[var(--input-background)] px-3 py-2 text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
-          >
-            <option value="all">All</option>
-            <option value="contacted">Contacted</option>
-            <option value="offered">Offered</option>
-            <option value="visited">Visited</option>
-            <option value="committed">Committed</option>
-            <option value="signed">Signed</option>
-            <option value="not-interested">Not Interested</option>
-          </select>
-        </div>
 
         <div className="space-y-2">
           <label className="block text-sm text-[var(--ink-muted)]">Position</label>
@@ -155,7 +118,7 @@ export function RecruitFilters({
           >
             <option value="all">All Schools</option>
             {availableSchools.map((school) => (
-              <option key={school.id} value={school.id}>
+              <option key={school.record_id} value={school.record_id}>
                 {school.name}
               </option>
             ))}

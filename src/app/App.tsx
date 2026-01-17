@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { LayoutDashboard, Users, Building2, Bell, CheckSquare, FileText, Mail, Phone, Workflow } from "lucide-react";
-import { Person, ProspectType, RecruitStatus, School, PersonRole } from "./types/recruit";
+import { LayoutDashboard, Users, Building2, Bell, CheckSquare, ChevronDown, UserSquare2, GraduationCap, Briefcase } from "lucide-react";
+import { PersonFull, School, PersonTypeValue, PositionValue } from "./types/database";
 import { Header } from "./components/Header";
 import { Dashboard } from "./components/Dashboard";
 import { RecruitFilters } from "./components/RecruitFilters";
@@ -8,26 +8,28 @@ import { RecruitTable } from "./components/RecruitTable";
 import { RecruitDialog } from "./components/RecruitDialog";
 import { Button } from "./components/ui/Button";
 import { PersonDetail } from "./components/PersonDetail";
+import {
+  initDatabase,
+  getAllPeople,
+  getAllSchoolsWithCounts,
+  deletePerson,
+} from "./services/storage";
+import { seedSampleData } from "./services/sampleData";
 import logo from "../assets/columbia-logo.jpg";
 
-const STORAGE_KEY = "recruittrack_people";
-const SCHOOLS_KEY = "recruittrack_schools";
-
 export default function App() {
-  const [people, setPeople] = useState<Person[]>([]);
+  const [people, setPeople] = useState<PersonFull[]>([]);
   const [schools, setSchools] = useState<School[]>([]);
   const [currentView, setCurrentView] = useState<"dashboard" | "people" | "schools">("dashboard");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [dialogMode, setDialogMode] = useState<"add" | "edit">("add");
-  const [editingPerson, setEditingPerson] = useState<Person | undefined>();
+  const [editingPerson, setEditingPerson] = useState<PersonFull | undefined>();
   const [selectedPersonId, setSelectedPersonId] = useState<string | null>(null);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedRole, setSelectedRole] = useState<PersonRole | "all">("all");
-  const [selectedProspectType, setSelectedProspectType] = useState<ProspectType | "all">("all");
-  const [selectedStatus, setSelectedStatus] = useState<RecruitStatus | "all">("all");
-  const [selectedPosition, setSelectedPosition] = useState("all");
+  const [selectedRole, setSelectedRole] = useState<PersonTypeValue | "all">("all");
+  const [selectedPosition, setSelectedPosition] = useState<PositionValue | "all">("all");
   const [selectedState, setSelectedState] = useState("all");
   const [selectedCity, setSelectedCity] = useState("all");
   const [selectedRating, setSelectedRating] = useState("all");
@@ -35,202 +37,46 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   const [isNavCollapsed, setIsNavCollapsed] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
+  const [isPeopleExpanded, setIsPeopleExpanded] = useState(false);
+  const [selectedPeopleSubView, setSelectedPeopleSubView] = useState<PersonTypeValue | null>(null);
 
-  // Load data from localStorage
+  // Initialize database and load data
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    const storedSchools = localStorage.getItem(SCHOOLS_KEY);
-    if (stored) {
+    async function loadData() {
       try {
-        const data = JSON.parse(stored);
-        setPeople(data);
-      } catch (e) {
-        console.error("Failed to load data", e);
-      }
-    }
-    if (storedSchools) {
-      try {
-        setSchools(JSON.parse(storedSchools));
-      } catch (e) {
-        console.error("Failed to load schools", e);
+        // Initialize IndexedDB
+        await initDatabase();
+
+        // Seed sample data if empty
+        await seedSampleData();
+
+        // Load all data
+        const allPeople = await getAllPeople();
+        const allSchools = await getAllSchoolsWithCounts();
+
+        setPeople(allPeople);
+        setSchools(allSchools);
+        setDataLoaded(true);
+      } catch (error) {
+        console.error("Failed to load data:", error);
       }
     }
 
-    if (!stored && !storedSchools) {
-      const sampleSchools: School[] = [
-        { id: "s1", name: "Lincoln High School", city: "Los Angeles", state: "CA", type: "high-school" },
-        { id: "s2", name: "Central High", city: "Miami", state: "FL", type: "high-school" },
-        { id: "s3", name: "State University", city: "Austin", state: "TX", type: "college" },
-      ];
-
-      const sampleData: Person[] = [
-        {
-          id: "1",
-          name: "Marcus Johnson",
-          role: "player",
-          socialMedia: {
-            twitter: "https://twitter.com/marcusj",
-            hudl: "https://hudl.com/marcusj",
-          },
-          prospectType: "high-school",
-          currentSchool: "Lincoln High School",
-          schoolId: "s1",
-          city: "Los Angeles",
-          state: "CA",
-          ratings: {
-            maxpreps: 4,
-            maxprepsRating: 4,
-            composite: 92.1,
-          },
-          position: "QB",
-          graduationYear: 2025,
-          heightFeet: 6,
-          heightInches: 3,
-          weight: "205 lbs",
-          status: "offered",
-          dateAdded: new Date().toISOString(),
-        },
-        {
-          id: "2",
-          name: "Tyler Davis",
-          role: "player",
-          socialMedia: {
-            instagram: "https://instagram.com/tdavis",
-            twitter: "https://twitter.com/tdavis",
-          },
-          prospectType: "transfer",
-          currentSchool: "State University",
-          schoolId: "s3",
-          city: "Austin",
-          state: "TX",
-          ratings: {
-            maxpreps: 3,
-            stars247: 3,
-            composite: 87.4,
-          },
-          position: "WR",
-          graduationYear: 2024,
-          heightFeet: 6,
-          heightInches: 1,
-          weight: "190 lbs",
-          status: "contacted",
-          dateAdded: new Date().toISOString(),
-        },
-        {
-          id: "3",
-          name: "Derek Williams",
-          role: "player",
-          socialMedia: {
-            hudl: "https://hudl.com/dwilliams",
-          },
-          prospectType: "high-school",
-          currentSchool: "Central High",
-          schoolId: "s2",
-          city: "Miami",
-          state: "FL",
-          ratings: {
-            maxpreps: 5,
-            starsESPN: 5,
-            composite: 96.5,
-          },
-          position: "RB",
-          graduationYear: 2025,
-          heightFeet: 5,
-          heightInches: 11,
-          weight: "210 lbs",
-          status: "committed",
-          dateAdded: new Date().toISOString(),
-        },
-        {
-          id: "4",
-          name: "Leah Chen",
-          role: "player",
-          socialMedia: {
-            instagram: "https://instagram.com/leahchen",
-          },
-          prospectType: "transfer",
-          currentSchool: "State University",
-          schoolId: "s3",
-          city: "Austin",
-          state: "TX",
-          ratings: {
-            maxpreps: 4,
-            starsRivals: 4,
-            composite: 90.2,
-          },
-          position: "CB",
-          graduationYear: 2024,
-          heightFeet: 5,
-          heightInches: 10,
-          weight: "178 lbs",
-          status: "visited",
-          dateAdded: new Date().toISOString(),
-        },
-        {
-          id: "5",
-          name: "Coach Alvarez",
-          role: "coach",
-          socialMedia: {},
-          currentSchool: "Central High",
-          schoolId: "s2",
-          city: "Miami",
-          state: "FL",
-          position: "Head Coach",
-          dateAdded: new Date().toISOString(),
-          ratings: {},
-        },
-        {
-          id: "6",
-          name: "Jordan Price",
-          role: "player",
-          socialMedia: {
-            twitter: "https://twitter.com/jprice",
-          },
-          currentSchool: "State University",
-          schoolId: "s3",
-          city: "Austin",
-          state: "TX",
-          position: "WR",
-          graduationYear: 2026,
-          dateAdded: new Date().toISOString(),
-          ratings: {
-            starsOn3: 4,
-            composite: 88.3,
-          },
-        },
-      ];
-      setSchools(sampleSchools);
-      setPeople(sampleData);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleData));
-      localStorage.setItem(SCHOOLS_KEY, JSON.stringify(sampleSchools));
-    }
+    loadData();
   }, []);
 
-  useEffect(() => {
-    if (schools.length === 0 && people.length > 0) {
-      const derived: School[] = Array.from(
-        new Map(
-          people
-            .filter((r) => r.currentSchool)
-            .map((r) => [r.currentSchool, { id: r.currentSchool, name: r.currentSchool, type: "high-school" as const }])
-        ).values()
-      );
-      setSchools(derived);
+  // Refresh data helper
+  const refreshData = async () => {
+    try {
+      const allPeople = await getAllPeople();
+      const allSchools = await getAllSchoolsWithCounts();
+      setPeople(allPeople);
+      setSchools(allSchools);
+    } catch (error) {
+      console.error("Failed to refresh data:", error);
     }
-  }, [people, schools.length]);
-
-  // Save to localStorage whenever people change
-  useEffect(() => {
-    if (people.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(people));
-    }
-  }, [people]);
-
-  useEffect(() => {
-    if (schools.length > 0) {
-      localStorage.setItem(SCHOOLS_KEY, JSON.stringify(schools));
-    }
-  }, [schools]);
+  };
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLoading(false), 6500);
@@ -256,86 +102,123 @@ export default function App() {
     setIsDialogOpen(true);
   };
 
-  const handleEditRecruit = (recruit: Person) => {
-    setDialogMode("edit");
-    setEditingPerson(recruit);
-    setIsDialogOpen(true);
-  };
+  const handleSaveRecruit = async (personData: any) => {
+    try {
+      const { type } = personData;
+      let newPerson: PersonFull | undefined;
 
-  const handleSaveRecruit = (recruitData: Omit<Person, "id" | "dateAdded"> & { id?: string }) => {
-    const schoolName = recruitData.schoolId
-      ? schools.find((s) => s.id === recruitData.schoolId)?.name
-      : undefined;
+      // Create a minimal person based on type
+      if (type === "player") {
+        const { createPlayer } = await import("./services/storage");
+        newPerson = await createPlayer({
+          person: {
+            first_name: "New",
+            last_name: "Player",
+            type: "player",
+          },
+          player: {
+            position: [],
+          },
+        });
+      } else if (type === "coach") {
+        const { createCoach } = await import("./services/storage");
+        newPerson = await createCoach({
+          person: {
+            first_name: "New",
+            last_name: "Coach",
+            type: "coach",
+          },
+          coach: {
+            specialty: [],
+          },
+        });
+      } else if (type === "staff") {
+        const { createStaff } = await import("./services/storage");
+        newPerson = await createStaff({
+          person: {
+            first_name: "New",
+            last_name: "Staff",
+            type: "staff",
+          },
+          staff: {
+            specialty: [],
+          },
+        });
+      }
 
-    if (dialogMode === "add") {
-      const newPerson: Person = {
-        ...recruitData,
-        currentSchool: schoolName || recruitData.currentSchool,
-        id: Date.now().toString(),
-        dateAdded: new Date().toISOString(),
-      } as Person;
-      setPeople([...people, newPerson]);
-    } else if (dialogMode === "edit" && recruitData.id) {
-      setPeople(
-        people.map((r) =>
-          r.id === recruitData.id
-            ? { ...recruitData, currentSchool: schoolName || recruitData.currentSchool, dateAdded: r.dateAdded } as Person
-            : r
-        )
-      );
+      await refreshData();
+      setIsDialogOpen(false);
+
+      // Navigate to person detail view for editing
+      if (newPerson) {
+        setSelectedPersonId(newPerson.record_id);
+        setCurrentView("people");
+      }
+    } catch (error) {
+      console.error("Failed to save person:", error);
     }
   };
 
-  const handleDeleteRecruit = (id: string) => {
-    if (confirm("Are you sure you want to delete this recruit?")) {
-      setPeople(people.filter((r) => r.id !== id));
+  const handleDeleteRecruit = async (id: string) => {
+    if (confirm("Are you sure you want to delete this person?")) {
+      try {
+        await deletePerson(id);
+        await refreshData();
+      } catch (error) {
+        console.error("Failed to delete person:", error);
+      }
     }
   };
 
   // Filter people
-  const filteredPeople = people.filter((recruit) => {
-    const searchName = recruit.name || "";
-    const searchSchool = recruit.currentSchool || "";
+  const filteredPeople = people.filter((person) => {
+    const searchName = `${person.first_name} ${person.last_name}`;
+    const searchSchool = person.school?.name || "";
     const matchesSearch =
       searchQuery === "" ||
       searchName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       searchSchool.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesRole = selectedRole === "all" || recruit.role === selectedRole;
+    const matchesRole = selectedRole === "all" || person.type === selectedRole;
 
-    const matchesProspectType =
-      selectedProspectType === "all" || recruit.prospectType === selectedProspectType;
+    // Position filter only applies to players
+    const matchesPosition =
+      selectedPosition === "all" ||
+      (person.type === "player" && person.player.position.includes(selectedPosition));
 
-    const matchesStatus = selectedStatus === "all" || recruit.status === selectedStatus;
+    const matchesState = selectedState === "all" || person.school?.state === selectedState;
 
-    const matchesPosition = selectedPosition === "all" || recruit.position === selectedPosition;
+    const matchesCity = selectedCity === "all" || person.school?.city === selectedCity;
 
-    const matchesState = selectedState === "all" || recruit.state === selectedState;
+    const matchesRating =
+      selectedRating === "all" ||
+      (person.type === "player" && person.rating?.maxpreps === parseInt(selectedRating));
 
-    const matchesCity = selectedCity === "all" || recruit.city === selectedCity;
+    const matchesSchool = selectedSchool === "all" || person.school_id === selectedSchool;
 
-    const matchesRating = selectedRating === "all" || recruit.ratings?.maxpreps === parseInt(selectedRating);
-
-    const matchesSchool = selectedSchool === "all" || recruit.schoolId === selectedSchool;
-
-    return matchesSearch && matchesRole && matchesProspectType && matchesStatus && matchesPosition && matchesState && matchesCity && matchesRating && matchesSchool;
+    return matchesSearch && matchesRole && matchesPosition && matchesState && matchesCity && matchesRating && matchesSchool;
   });
 
   // Get unique positions, states, cities for filters
-  const availablePositions = Array.from(new Set(people.map((r) => r.position).filter(Boolean))).sort() as string[];
+  const availablePositions = Array.from(
+    new Set(
+      people
+        .filter((p) => p.type === "player")
+        .flatMap((p) => (p.type === "player" ? p.player.position : []))
+    )
+  ).sort();
+
   const availableStates = Array.from(
-    new Set(people.map((r) => r.state).filter((state): state is string => Boolean(state)))
+    new Set(people.map((p) => p.school?.state).filter((state): state is string => Boolean(state)))
   ).sort();
+
   const availableCities = Array.from(
-    new Set(people.map((r) => r.city).filter((city): city is string => Boolean(city)))
+    new Set(people.map((p) => p.school?.city).filter((city): city is string => Boolean(city)))
   ).sort();
+
   const availableSchools = schools;
-  const schoolRecruitCounts = new Map<string, number>();
-  people.forEach((r) => {
-    const key = r.schoolId || r.currentSchool || "unassigned";
-    schoolRecruitCounts.set(key, (schoolRecruitCounts.get(key) || 0) + 1);
-  });
-  const selectedPerson = selectedPersonId ? people.find((p) => p.id === selectedPersonId) : undefined;
+
+  const selectedPerson = selectedPersonId ? people.find((p) => p.record_id === selectedPersonId) : undefined;
 
   const navItems = [
     {
@@ -439,36 +322,111 @@ export default function App() {
               <nav className="space-y-1">
                 {navItems.map((item) => {
                   const active = currentView === item.view;
+                  const isPeopleItem = item.key === "people";
+
                   return (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => setCurrentView(item.view)}
-                      className={`group flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm transition ${
-                        active
-                          ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-sm"
-                          : "text-[var(--ink)] hover:bg-[var(--muted)]/80"
-                      } ${isNavCollapsed ? "justify-center" : ""}`}
-                      title={item.label}
-                    >
-                      <span
-                        className={`flex h-9 w-9 items-center justify-center rounded-md ${
-                          active ? "bg-white/20" : "bg-white/80 text-[var(--ink)]"
-                        } shadow-sm`}
+                    <div key={item.key}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isPeopleItem) {
+                            setIsPeopleExpanded(!isPeopleExpanded);
+                            setCurrentView(item.view);
+                          } else {
+                            setCurrentView(item.view);
+                            setIsPeopleExpanded(false);
+                          }
+                        }}
+                        className={`group flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm transition ${
+                          active
+                            ? "bg-[var(--primary)] text-[var(--primary-foreground)] shadow-sm"
+                            : "text-[var(--ink)] hover:bg-[var(--muted)]/80"
+                        } ${isNavCollapsed ? "justify-center" : ""}`}
+                        title={item.label}
                       >
-                        {item.icon}
-                      </span>
-                      {!isNavCollapsed && <span className="flex-1 truncate">{item.label}</span>}
-                      {!isNavCollapsed && item.badge !== undefined && (
                         <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                            active ? "bg-white/25 text-[var(--primary-foreground)]" : "bg-[var(--accent)] text-[var(--ink)]"
-                          }`}
+                          className={`flex h-9 w-9 items-center justify-center rounded-md ${
+                            active ? "bg-white/20" : "bg-white/80 text-[var(--ink)]"
+                          } shadow-sm`}
                         >
-                          {item.badge}
+                          {item.icon}
                         </span>
+                        {!isNavCollapsed && <span className="flex-1 truncate">{item.label}</span>}
+                        {!isNavCollapsed && isPeopleItem && (
+                          <ChevronDown
+                            className={`size-4 transition-transform ${isPeopleExpanded ? "rotate-180" : ""}`}
+                          />
+                        )}
+                        {!isNavCollapsed && item.badge !== undefined && !isPeopleItem && (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                              active ? "bg-white/25 text-[var(--primary-foreground)]" : "bg-[var(--accent)] text-[var(--ink)]"
+                            }`}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                      </button>
+
+                      {/* People Sub-items */}
+                      {isPeopleItem && isPeopleExpanded && !isNavCollapsed && (
+                        <div className="ml-2 mt-1 space-y-1">
+                          {[
+                            {
+                              key: "player",
+                              label: "Players",
+                              icon: <GraduationCap className="size-4" />,
+                              count: people.filter(p => p.type === "player").length
+                            },
+                            {
+                              key: "coach",
+                              label: "Coaches",
+                              icon: <UserSquare2 className="size-4" />,
+                              count: people.filter(p => p.type === "coach").length
+                            },
+                            {
+                              key: "staff",
+                              label: "Staff",
+                              icon: <Briefcase className="size-4" />,
+                              count: people.filter(p => p.type === "staff").length
+                            },
+                          ].map((subItem) => {
+                            const isSubActive = selectedPeopleSubView === subItem.key;
+                            return (
+                              <button
+                                key={subItem.key}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPeopleSubView(subItem.key as PersonTypeValue);
+                                  setSelectedRole(subItem.key as PersonTypeValue);
+                                }}
+                                className={`group flex w-full items-center gap-3 rounded-md px-2 py-2 text-left text-sm transition ${
+                                  isSubActive
+                                    ? "bg-[rgba(21,63,43,0.55)] text-[var(--primary-foreground)] shadow-sm border border-[var(--primary-foreground)]"
+                                    : "bg-white/80 text-[var(--ink)] hover:bg-[var(--muted)]/80 border border-[var(--border)] shadow-sm"
+                                }`}
+                              >
+                                <span
+                                  className={`flex h-9 w-9 items-center justify-center rounded-md ${
+                                    isSubActive ? "bg-white/20 border border-[var(--primary-foreground)]" : "bg-white/20 text-[var(--ink)]"
+                                  } shadow-sm`}
+                                >
+                                  {subItem.icon}
+                                </span>
+                                <span className="flex-1 truncate">{subItem.label}</span>
+                                <span
+                                  className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                    isSubActive ? "bg-white/25 text-[var(--primary-foreground)]" : "bg-[var(--accent)] text-[var(--ink)]"
+                                  }`}
+                                >
+                                  {subItem.count}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
-                    </button>
+                    </div>
                   );
                 })}
               </nav>
@@ -491,10 +449,6 @@ export default function App() {
                       onSearchChange={setSearchQuery}
                       selectedRole={selectedRole}
                       onRoleChange={setSelectedRole}
-                      selectedProspectType={selectedProspectType}
-                      onProspectTypeChange={setSelectedProspectType}
-                      selectedStatus={selectedStatus}
-                      onStatusChange={setSelectedStatus}
                       selectedPosition={selectedPosition}
                       onPositionChange={setSelectedPosition}
                       availablePositions={availablePositions}
@@ -525,9 +479,8 @@ export default function App() {
 
                     <RecruitTable
                       recruits={filteredPeople}
-                      onEdit={handleEditRecruit}
                       onDelete={handleDeleteRecruit}
-                      onSelect={(person) => setSelectedPersonId(person.id)}
+                      onSelect={(person) => setSelectedPersonId(person.record_id)}
                     />
                   </>
                 )}
@@ -536,6 +489,7 @@ export default function App() {
                   <PersonDetail
                     person={selectedPerson}
                     onBack={() => setSelectedPersonId(null)}
+                    onUpdate={refreshData}
                   />
                 )}
               </div>
@@ -565,15 +519,20 @@ export default function App() {
                     </thead>
                     <tbody className="divide-y divide-[var(--border)]">
                       {schools.map((school) => {
-                        const count = people.filter((r) => r.schoolId === school.id).length;
+                        const typesDisplay = school.type.join(", ");
+                        const totalCount =
+                          "player_count" in school
+                            ? school.player_count + school.coach_count + school.staff_count
+                            : people.filter((p) => p.school_id === school.record_id).length;
+
                         return (
-                          <tr key={school.id} className="hover:bg-[var(--muted)]/40">
+                          <tr key={school.record_id} className="hover:bg-[var(--muted)]/40">
                             <td className="px-4 py-3 text-[var(--ink)]">{school.name}</td>
-                            <td className="px-4 py-3 text-[var(--ink-muted)] capitalize">{school.type.replace("-", " ")}</td>
+                            <td className="px-4 py-3 text-[var(--ink-muted)]">{typesDisplay}</td>
                             <td className="px-4 py-3 text-[var(--ink-muted)]">
                               {[school.city, school.state].filter(Boolean).join(", ") || "—"}
                             </td>
-                            <td className="px-4 py-3 text-right text-[var(--ink)] font-semibold">{count}</td>
+                            <td className="px-4 py-3 text-right text-[var(--ink)] font-semibold">{totalCount}</td>
                           </tr>
                         );
                       })}
